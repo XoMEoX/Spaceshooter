@@ -2,13 +2,18 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Space Shooter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Space Shooter Mobile</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         body {
@@ -24,6 +29,8 @@
         canvas {
             border: 2px solid #0ff;
             box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+            max-width: 100%;
+            max-height: 100%;
         }
 
         #ui-overlay {
@@ -38,7 +45,7 @@
             pointer-events: none;
         }
 
-        #start-screen, #game-over-screen {
+        #start-screen, #game-over-screen, #permission-screen {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             display: flex;
@@ -49,31 +56,34 @@
             font-family: 'Courier New', monospace;
             z-index: 20;
             background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
         }
 
-        #start-screen h1, #game-over-screen h1 {
-            font-size: 48px;
+        #start-screen h1, #game-over-screen h1, #permission-screen h1 {
+            font-size: 36px;
             text-shadow: 0 0 20px #0ff, 0 0 40px #0ff;
             margin-bottom: 20px;
+            text-align: center;
         }
 
-        #start-screen p, #game-over-screen p {
-            font-size: 18px;
+        #start-screen p, #game-over-screen p, #permission-screen p {
+            font-size: 16px;
             margin-bottom: 10px;
             color: #aaa;
+            text-align: center;
         }
 
         #game-over-screen .final-score {
-            font-size: 36px;
+            font-size: 28px;
             color: #ff0;
             margin: 20px 0;
             text-shadow: 0 0 15px #ff0;
         }
 
         .btn {
-            margin-top: 30px;
+            margin-top: 20px;
             padding: 15px 40px;
-            font-size: 20px;
+            font-size: 18px;
             font-family: 'Courier New', monospace;
             background: transparent;
             color: #0ff;
@@ -83,6 +93,7 @@
             letter-spacing: 3px;
             transition: all 0.3s;
             pointer-events: all;
+            min-width: 200px;
         }
 
         .btn:hover {
@@ -91,25 +102,87 @@
             box-shadow: 0 0 20px #0ff;
         }
 
+        .btn:active {
+            transform: scale(0.95);
+        }
+
         .controls-info {
-            font-size: 14px;
+            font-size: 13px;
             color: #666;
-            margin-top: 20px;
-            line-height: 1.8;
+            margin-top: 15px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        /* Shoot Button */
+        #shoot-button {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 68, 68, 0.3);
+            border: 3px solid #f44;
+            color: #f44;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 15;
+            pointer-events: all;
+            transition: all 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #shoot-button:active, #shoot-button.active {
+            background: rgba(255, 68, 68, 0.7);
+            transform: scale(0.9);
+        }
+
+        /* Hide shoot button on desktop */
+        @media (min-width: 768px) {
+            #shoot-button {
+                display: none;
+            }
+        }
+
+        /* Permission info */
+        #permission-info {
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid #0ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            max-width: 400px;
+            font-size: 14px;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
 
+<div id="permission-screen" style="display:none;">
+    <h1>BEWEGUNGSZUGRIFF</h1>
+    <div id="permission-info">
+        Für die Neigungssteuerung benötige ich Zugriff auf deine Bewegungssensoren.<br><br>
+        <strong>iPhone:</strong> Tippe auf "Zulassen" im Popup<br>
+        <strong>Android:</strong> Erlaube die Berechtigung in den Einstellungen
+    </div>
+    <button class="btn" id="request-permission-btn">ZUGRIFF ERLAUBEN</button>
+    <button class="btn" id="skip-permission-btn" style="margin-top: 10px; font-size: 14px; padding: 10px 20px;">OHNE NEIGUNG</button>
+</div>
+
 <div id="start-screen">
     <h1>SPACE SHOOTER</h1>
     <p>Vernichte die feindlichen Raumschiffe!</p>
     <div class="controls-info">
-        ← → oder A/D — Bewegen<br>
-        LEERTASTE — Schießen<br>
-        P — Pause
+        <strong>iPhone:</strong> Neigen zum Bewegen • Button zum Schießen<br>
+        <strong>Mac:</strong> ← → / A/D • Leertaste zum Schießen
     </div>
-    <button class="btn" onclick="startGame()">STARTEN</button>
+    <button class="btn" onclick="requestPermissionAndStart()">STARTEN</button>
 </div>
 
 <div id="game-over-screen" style="display:none;">
@@ -120,14 +193,18 @@
 </div>
 
 <canvas id="gameCanvas"></canvas>
+<div id="shoot-button">FEUERN</div>
 
 <script>
 // === CANVAS SETUP ===
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const WIDTH = 600;
-const HEIGHT = 800;
+// Responsive canvas size
+const isMobile = window.innerWidth < 768;
+const WIDTH = isMobile ? window.innerWidth : 600;
+const HEIGHT = isMobile ? window.innerHeight : 800;
+
 canvas.width = WIDTH;
 canvas.height = HEIGHT;
 
@@ -138,9 +215,11 @@ let score = 0;
 let lives = 3;
 let wave = 1;
 let waveTimer = 0;
-let enemySpawnRate = 60; // frames between spawns
+let enemySpawnRate = 60;
 let frameCount = 0;
 let shakeAmount = 0;
+let tiltEnabled = false;
+let tiltSensitivity = 2;
 
 // === STARS (Background) ===
 const stars = [];
@@ -157,13 +236,14 @@ for (let i = 0; i < 150; i++) {
 // === PLAYER ===
 const player = {
     x: WIDTH / 2,
-    y: HEIGHT - 80,
+    y: HEIGHT - 100,
     width: 40,
     height: 40,
     speed: 6,
     shootCooldown: 0,
     shootRate: 12,
-    invincible: 0
+    invincible: 0,
+    tiltX: 0
 };
 
 // === ARRAYS ===
@@ -174,6 +254,9 @@ let powerUps = [];
 
 // === INPUT ===
 const keys = {};
+let touchShootActive = false;
+
+// Keyboard
 document.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (e.code === 'KeyP' && gameRunning) {
@@ -187,27 +270,102 @@ document.addEventListener('keyup', e => {
     keys[e.code] = false;
 });
 
+// Touch Shoot Button
+const shootButton = document.getElementById('shoot-button');
+shootButton.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    touchShootActive = true;
+    shootButton.classList.add('active');
+}, { passive: false });
+
+shootButton.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    touchShootActive = false;
+    shootButton.classList.remove('active');
+}, { passive: false });
+
+shootButton.addEventListener('mousedown', (e) => {
+    touchShootActive = true;
+    shootButton.classList.add('active');
+});
+
+shootButton.addEventListener('mouseup', (e) => {
+    touchShootActive = false;
+    shootButton.classList.remove('active');
+});
+
+// === DEVICE ORIENTATION (TILT) ===
+function handleOrientation(event) {
+    if (!tiltEnabled || !gameRunning) return;
+    
+    // Gamma is left/right tilt (-90 to 90 degrees)
+    let tilt = event.gamma || 0;
+    
+    // Clamp to reasonable range
+    tilt = Math.max(-45, Math.min(45, tilt));
+    
+    // Normalize to -1 to 1
+    player.tiltX = tilt / 45;
+}
+
+function requestDeviceOrientation() {
+    return new Promise((resolve) => {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            // iOS 13+
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        tiltEnabled = true;
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                })
+                .catch(console.error);
+        } else {
+            // Non-iOS or older iOS
+            tiltEnabled = true;
+            resolve(true);
+        }
+    });
+}
+
 // === ENEMY TYPES ===
 const enemyTypes = [
-    { // Basic
-        width: 30, height: 30, hp: 1, speed: 2, score: 10,
-        color: '#f44', shootChance: 0
-    },
-    { // Fast
-        width: 25, height: 25, hp: 1, speed: 4, score: 20,
-        color: '#ff0', shootChance: 0
-    },
-    { // Tank
-        width: 45, height: 45, hp: 3, speed: 1.2, score: 30,
-        color: '#f0f', shootChance: 0.005
-    },
-    { // Shooter
-        width: 35, height: 35, hp: 2, speed: 1.5, score: 40,
-        color: '#0f0', shootChance: 0.01
-    }
+    { width: 30, height: 30, hp: 1, speed: 2, score: 10, color: '#f44', shootChance: 0 },
+    { width: 25, height: 25, hp: 1, speed: 4, score: 20, color: '#ff0', shootChance: 0 },
+    { width: 45, height: 45, hp: 3, speed: 1.2, score: 30, color: '#f0f', shootChance: 0.005 },
+    { width: 35, height: 35, hp: 2, speed: 1.5, score: 40, color: '#0f0', shootChance: 0.01 }
 ];
 
 // === FUNCTIONS ===
+function requestPermissionAndStart() {
+    if (isMobile) {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('permission-screen').style.display = 'flex';
+        
+        document.getElementById('request-permission-btn').onclick = async () => {
+            const granted = await requestDeviceOrientation();
+            if (granted) {
+                window.addEventListener('deviceorientation', handleOrientation);
+                document.getElementById('permission-screen').style.display = 'none';
+                startGame();
+            } else {
+                alert('Bewegungszugriff verweigert. Spiel startet ohne Neigungssteuerung.');
+                document.getElementById('permission-screen').style.display = 'none';
+                startGame();
+            }
+        };
+        
+        document.getElementById('skip-permission-btn').onclick = () => {
+            document.getElementById('permission-screen').style.display = 'none';
+            startGame();
+        };
+    } else {
+        startGame();
+    }
+}
+
 function startGame() {
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-over-screen').style.display = 'none';
@@ -219,9 +377,10 @@ function startGame() {
     enemySpawnRate = 55;
     frameCount = 0;
     shakeAmount = 0;
+    player.tiltX = 0;
 
     player.x = WIDTH / 2;
-    player.y = HEIGHT - 80;
+    player.y = HEIGHT - 100;
     player.shootCooldown = 0;
     player.invincible = 0;
 
@@ -316,7 +475,6 @@ function drawEnemy(enemy) {
     const hpRatio = enemy.hp / enemy.maxHp;
 
     if (enemy.type === 0) {
-        // Basic - red triangle pointing down
         ctx.fillStyle = enemy.color;
         ctx.beginPath();
         ctx.moveTo(0, 15);
@@ -329,7 +487,6 @@ function drawEnemy(enemy) {
         ctx.arc(0, -2, 4, 0, Math.PI * 2);
         ctx.fill();
     } else if (enemy.type === 1) {
-        // Fast - yellow diamond
         ctx.fillStyle = enemy.color;
         ctx.beginPath();
         ctx.moveTo(0, -13);
@@ -339,7 +496,6 @@ function drawEnemy(enemy) {
         ctx.closePath();
         ctx.fill();
     } else if (enemy.type === 2) {
-        // Tank - purple hexagon
         ctx.fillStyle = enemy.color;
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
@@ -351,13 +507,11 @@ function drawEnemy(enemy) {
         }
         ctx.closePath();
         ctx.fill();
-        // HP bar
         ctx.fillStyle = '#333';
         ctx.fillRect(-15, -30, 30, 4);
         ctx.fillStyle = hpRatio > 0.5 ? '#0f0' : '#f00';
         ctx.fillRect(-15, -30, 30 * hpRatio, 4);
     } else if (enemy.type === 3) {
-        // Shooter - green circle with crosshair
         ctx.fillStyle = enemy.color;
         ctx.beginPath();
         ctx.arc(0, 0, 16, 0, Math.PI * 2);
@@ -371,7 +525,6 @@ function drawEnemy(enemy) {
         ctx.moveTo(-16, 0); ctx.lineTo(16, 0);
         ctx.moveTo(0, -16); ctx.lineTo(0, 16);
         ctx.stroke();
-        // HP bar
         ctx.fillStyle = '#333';
         ctx.fillRect(-15, -26, 30, 4);
         ctx.fillStyle = hpRatio > 0.5 ? '#0f0' : '#f00';
@@ -395,24 +548,20 @@ function drawBullet(bullet) {
 }
 
 function drawHUD() {
-    // Score
     ctx.fillStyle = '#0ff';
-    ctx.font = '20px Courier New';
+    ctx.font = '16px Courier New';
     ctx.textAlign = 'left';
-    ctx.fillText(`PUNKTE: ${score}`, 15, 35);
+    ctx.fillText(`PUNKTE: ${score}`, 15, 30);
 
-    // Wave
     ctx.textAlign = 'center';
-    ctx.fillText(`WELLE ${wave}`, WIDTH / 2, 35);
+    ctx.fillText(`WELLE ${wave}`, WIDTH / 2, 30);
 
-    // Lives
     ctx.textAlign = 'right';
     ctx.fillStyle = '#f44';
     for (let i = 0; i < lives; i++) {
-        ctx.fillText('♥', WIDTH - 15 - i * 28, 37);
+        ctx.fillText('♥', WIDTH - 15 - i * 28, 32);
     }
 
-    // Pause indicator
     if (paused) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -437,6 +586,12 @@ function update() {
     frameCount++;
 
     // === PLAYER MOVEMENT ===
+    // Tilt control (mobile)
+    if (tiltEnabled) {
+        player.x += player.tiltX * player.speed * tiltSensitivity;
+    }
+    
+    // Keyboard control (desktop fallback)
     if (keys['ArrowLeft'] || keys['KeyA']) {
         player.x -= player.speed;
     }
@@ -447,7 +602,7 @@ function update() {
 
     // === SHOOTING ===
     if (player.shootCooldown > 0) player.shootCooldown--;
-    if (keys['Space'] && player.shootCooldown <= 0) {
+    if ((keys['Space'] || touchShootActive) && player.shootCooldown <= 0) {
         bullets.push({
             x: player.x,
             y: player.y - 20,
@@ -467,7 +622,7 @@ function update() {
 
     // === WAVE SYSTEM ===
     waveTimer++;
-    if (waveTimer >= 600) { // every ~10 seconds
+    if (waveTimer >= 600) {
         wave++;
         waveTimer = 0;
         enemySpawnRate = Math.max(15, 55 - wave * 4);
@@ -489,7 +644,6 @@ function update() {
         enemy.y += enemy.speed;
         enemy.x += Math.sin(enemy.wobble) * 0.8;
 
-        // Enemy shooting
         if (enemy.shootChance > 0 && Math.random() < enemy.shootChance) {
             bullets.push({
                 x: enemy.x + enemy.width / 2,
@@ -499,12 +653,10 @@ function update() {
             });
         }
 
-        // Off screen
         if (enemy.y > HEIGHT + 50) {
             return false;
         }
 
-        // Collision with player
         if (player.invincible <= 0) {
             const playerBox = {
                 x: player.x - 15, y: player.y - 15,
@@ -528,7 +680,6 @@ function update() {
     // === BULLET-ENEMY COLLISIONS ===
     bullets = bullets.filter(bullet => {
         if (bullet.isEnemy) {
-            // Enemy bullet hits player
             if (player.invincible <= 0) {
                 const playerBox = {
                     x: player.x - 12, y: player.y - 12,
@@ -552,7 +703,6 @@ function update() {
             return true;
         }
 
-        // Player bullet hits enemy
         for (let i = 0; i < enemies.length; i++) {
             const enemy = enemies[i];
             const bulletBox = {
@@ -600,7 +750,6 @@ function update() {
 function draw() {
     ctx.save();
 
-    // Screen shake
     if (shakeAmount > 0) {
         ctx.translate(
             (Math.random() - 0.5) * shakeAmount,
@@ -608,11 +757,9 @@ function draw() {
         );
     }
 
-    // Background
     ctx.fillStyle = '#0a0a1a';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Stars
     stars.forEach(star => {
         star.y += star.speed;
         if (star.y > HEIGHT) {
@@ -624,16 +771,10 @@ function draw() {
         ctx.fillRect(star.x, star.y, star.size, star.size);
     });
 
-    // Bullets
     bullets.forEach(drawBullet);
-
-    // Enemies
     enemies.forEach(drawEnemy);
-
-    // Player
     drawPlayer();
 
-    // Particles
     particles.forEach(p => {
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
@@ -641,7 +782,6 @@ function draw() {
     });
     ctx.globalAlpha = 1;
 
-    // HUD
     drawHUD();
 
     ctx.restore();
@@ -661,7 +801,7 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Initial draw so canvas isn't blank
+// Initial draw
 ctx.fillStyle = '#0a0a1a';
 ctx.fillRect(0, 0, WIDTH, HEIGHT);
 stars.forEach(star => {
